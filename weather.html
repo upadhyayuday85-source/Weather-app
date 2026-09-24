@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #4e8cff, #6a5cff);
+      padding: 20px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 380px;
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+      border-radius: 20px;
+      padding: 28px;
+      color: #fff;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.4rem;
+      margin-bottom: 20px;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .search-box input {
+      flex: 1;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      font-size: 1rem;
+    }
+
+    .search-box button {
+      padding: 12px 18px;
+      border-radius: 10px;
+      border: none;
+      background: #ffb454;
+      color: #222;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .search-box button:hover { transform: scale(1.05); background: #ffc978; }
+    .search-box button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* ---------- Weather Card ---------- */
+    .card {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      display: none; /* JS shows this when data arrives */
+      animation: fadeIn 0.4s ease;
+    }
+    .card.show { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .city-name { font-size: 1.3rem; font-weight: 600; }
+    .date-text { font-size: 0.85rem; opacity: 0.8; margin-bottom: 10px; }
+
+    .icon { width: 90px; height: 90px; }
+
+    .temp { font-size: 3rem; font-weight: 700; line-height: 1; }
+    .condition { text-transform: capitalize; margin-bottom: 16px; opacity: 0.9; }
+
+    .details {
+      display: flex;
+      justify-content: space-around;
+      border-top: 1px solid rgba(255,255,255,0.25);
+      padding-top: 14px;
+      margin-top: 6px;
+    }
+
+    .details div { font-size: 0.85rem; }
+    .details strong { display: block; font-size: 1.05rem; }
+
+    /* ---------- States ---------- */
+    .status {
+      text-align: center;
+      font-size: 0.95rem;
+      opacity: 0.9;
+      min-height: 20px;
+    }
+    .status.error { color: #ffb4b4; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <div class="app">
+    <h1>🌤️ Weather App</h1>
+
+    <div class="search-box">
+      <input type="text" id="cityInput" placeholder="Enter city name (e.g. Meerut)">
+      <button id="searchBtn">Search</button>
+    </div>
+
+    <p class="status" id="status"></p>
+
+    <div class="card" id="weatherCard">
+      <div class="city-name" id="cityName"></div>
+      <div class="date-text" id="dateText"></div>
+      <img class="icon" id="weatherIcon" src="" alt="weather icon">
+      <div class="temp" id="temp"></div>
+      <div class="condition" id="condition"></div>
+      <div class="details">
+        <div>💧 Humidity<strong id="humidity"></strong></div>
+        <div>🌬️ Wind<strong id="wind"></strong></div>
+        <div>🤔 Feels like<strong id="feels"></strong></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 1) Apni free API key yahan daalo (openweathermap.org se milegi)
+    const API_KEY = "68cd895beda89765aa3885d8af3eb34f";
+
+    const cityInput   = document.getElementById("cityInput");
+    const searchBtn   = document.getElementById("searchBtn");
+    const statusEl    = document.getElementById("status");
+    const card        = document.getElementById("weatherCard");
+
+    const cityName    = document.getElementById("cityName");
+    const dateText    = document.getElementById("dateText");
+    const weatherIcon = document.getElementById("weatherIcon");
+    const temp        = document.getElementById("temp");
+    const condition    = document.getElementById("condition");
+    const humidity     = document.getElementById("humidity");
+    const wind          = document.getElementById("wind");
+    const feels          = document.getElementById("feels");
+
+    async function getWeather(city) {
+      if (!city.trim()) {
+        showStatus("Pehle koi city likho.", true);
+        return;
+      }
+
+      showStatus("Loading...", false);
+      card.classList.remove("show");
+      searchBtn.disabled = true;
+
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${API_KEY}&units=metric`;
+
+      try {
+        const response = await fetch(url);     // 2) Fetch API se data mangwaya
+        const data = await response.json();    // 3) JSON parse kiya
+
+        if (response.status !== 200) {
+          showStatus(data.message === "city not found" ? "City nahi mili, naam check karo." : "Kuch gadbad ho gayi.", true);
+          return;
+        }
+
+        renderWeather(data);
+        showStatus("", false);
+      } catch (err) {
+        showStatus("Network error — internet check karo.", true);
+      } finally {
+        searchBtn.disabled = false;
+      }
+    }
+
+    function renderWeather(data) {
+      cityName.textContent = `${data.name}, ${data.sys.country}`;
+      dateText.textContent = new Date().toLocaleDateString("en-IN", {
+        weekday: "long", day: "numeric", month: "short"
+      });
+
+      const iconCode = data.weather[0].icon;
+      weatherIcon.src = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
+
+      temp.textContent = `${Math.round(data.main.temp)}°C`;
+      condition.textContent = data.weather[0].description;
+      humidity.textContent = `${data.main.humidity}%`;
+      wind.textContent = `${data.wind.speed} m/s`;
+      feels.textContent = `${Math.round(data.main.feels_like)}°C`;
+
+      card.classList.add("show");
+    }
+
+    function showStatus(msg, isError) {
+      statusEl.textContent = msg;
+      statusEl.className = "status" + (isError ? " error" : "");
+    }
+
+    // 4) Event handling
+    searchBtn.addEventListener("click", () => getWeather(cityInput.value));
+    cityInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") getWeather(cityInput.value);
+    });
+
+    // Page load par ek default city dikha do (optional)
+    getWeather("Meerut");
+  </script>
+</body>
+</html>
